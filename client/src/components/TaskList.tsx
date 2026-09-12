@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { TaskModal } from './TaskModal'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000'
 
@@ -13,9 +14,12 @@ interface Task {
 }
 
 export function TaskList() {
-  const { accessToken } = useAuth()
+  const { accessToken, user } = useAuth()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
+  
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
 
   // Parse filters from URL
   const getFiltersFromUrl = () => {
@@ -74,6 +78,53 @@ export function TaskList() {
     
     const newUrl = `${window.location.pathname}?${params.toString()}`
     window.history.pushState({}, '', newUrl)
+  }
+
+  const handleStatusChange = async (taskId: string, newStatus: string) => {
+    try {
+      const res = await fetch(`${API_URL}/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        alert(data.message || 'Failed to update status')
+        return
+      }
+      fetchTasks(filters) // refresh list
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleDeleteTask = async (taskId: string, title: string) => {
+    if (!window.confirm(`Are you sure you want to delete task "${title}"?`)) return
+    
+    try {
+      const res = await fetch(`${API_URL}/tasks/${taskId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` }
+      })
+      if (res.ok) fetchTasks(filters)
+      else alert('Failed to delete task')
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const canChangeStatus = (task: Task) => {
+    if (!user) return false
+    if (user.role === 'ADMIN' || user.role === 'PM') return true
+    return user.email === task.assignedDeveloper?.email
+  }
+
+  const canEditOrDelete = () => {
+    if (!user) return false
+    return user.role === 'ADMIN' || user.role === 'PM'
   }
 
   return (
@@ -137,6 +188,7 @@ export function TaskList() {
                 <th className="px-4 py-3 font-medium">Priority</th>
                 <th className="px-4 py-3 font-medium">Due Date</th>
                 <th className="px-4 py-3 font-medium">Assignee</th>
+                <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-2">
@@ -144,7 +196,20 @@ export function TaskList() {
                 <tr key={task.id} className="hover:bg-surface-2/30">
                   <td className="px-4 py-3 font-medium text-text-primary">{task.title}</td>
                   <td className="px-4 py-3">
-                    <span className="rounded px-2 py-0.5 text-xs font-semibold bg-surface-3">{task.status}</span>
+                    {canChangeStatus(task) ? (
+                      <select 
+                        value={task.status}
+                        onChange={(e) => handleStatusChange(task.id, e.target.value)}
+                        className="rounded border border-surface-3 bg-surface-2 px-2 py-0.5 text-xs font-semibold outline-none focus:border-brand-500"
+                      >
+                        <option value="TODO">To Do</option>
+                        <option value="IN_PROGRESS">In Progress</option>
+                        <option value="IN_REVIEW">In Review</option>
+                        <option value="DONE">Done</option>
+                      </select>
+                    ) : (
+                      <span className="rounded px-2 py-0.5 text-xs font-semibold bg-surface-3">{task.status}</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span className="rounded px-2 py-0.5 text-xs font-semibold bg-surface-3">{task.priority}</span>
@@ -155,12 +220,27 @@ export function TaskList() {
                   <td className="px-4 py-3 text-text-secondary">
                     {task.assignedDeveloper?.email || 'Unassigned'}
                   </td>
+                  <td className="px-4 py-3 text-right">
+                    {canEditOrDelete() && (
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => { setEditingTask(task); setIsTaskModalOpen(true) }} className="text-xs text-brand-400 hover:underline">Edit</button>
+                        <button onClick={() => handleDeleteTask(task.id, task.title)} className="text-xs text-danger hover:underline">Delete</button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+      
+      <TaskModal
+        isOpen={isTaskModalOpen}
+        onClose={() => setIsTaskModalOpen(false)}
+        onSuccess={() => fetchTasks(filters)}
+        task={editingTask}
+      />
     </div>
   )
 }
