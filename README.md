@@ -65,6 +65,58 @@ Every call to `POST /auth/refresh` issues a **new** refresh token and invalidate
 
 ---
 
+## Database Schema
+
+```mermaid
+erDiagram
+    User ||--o{ Project : "creates"
+    User ||--o{ Task : "assigned to"
+    User ||--o{ Notification : "receives"
+    User ||--o{ TaskActivityLog : "performs"
+    Client ||--o{ Project : "owns"
+    Project ||--o{ Task : "contains"
+    Task ||--o{ TaskActivityLog : "tracks"
+
+    User {
+        String id PK
+        String email
+        String role
+    }
+    Client {
+        String id PK
+        String name
+    }
+    Project {
+        String id PK
+        String name
+        String clientId FK
+        String createdById FK
+    }
+    Task {
+        String id PK
+        String title
+        String status
+        String priority
+        String projectId FK
+        String assignedDeveloperId FK
+    }
+    TaskActivityLog {
+        String id PK
+        String fromStatus
+        String toStatus
+        String taskId FK
+        String userId FK
+    }
+    Notification {
+        String id PK
+        String type
+        String message
+        String userId FK
+    }
+```
+
+---
+
 ## Project Structure
 
 ```
