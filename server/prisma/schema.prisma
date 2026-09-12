@@ -1,0 +1,211 @@
+// This is the Prisma schema for the Client Project Dashboard.
+//
+// Data model decisions:
+//  - All IDs use cuid() for collision-resistant, URL-safe identifiers without a sequence dependency.
+//  - Soft-delete is intentionally omitted at this foundation stage; add deletedAt DateTime? fields if needed.
+//  - isOverdue is a stored boolean updated by a background job rather than computed in queries,
+//    so that dashboard filters (WHERE isOverdue = true) are cheap index lookups, not full table scans.
+//  - Foreign keys use explicit onDelete behaviour to prevent orphaned records.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  PM
+  DEVELOPER
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  STATUS_CHANGED
+  TASK_OVERDUE
+  PROJECT_CREATED
+  GENERAL
+}
+
+// ─────────────────────────────────────────────
+// User
+// ─────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(DEVELOPER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  createdProjects  Project[]          @relation("ProjectCreatedBy")
+  assignedTasks    Task[]             @relation("TaskAssignee")
+  activityLogs     TaskActivityLog[]
+  notifications    Notification[]
+  refreshTokens    RefreshToken[]
+
+  @@index([email])     // Fast lookup on login by email
+  @@index([role])      // Filter users by role for admin/PM selects
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────
+// Refresh Token
+// Used for token rotation — stored server-side so tokens can be invalidated.
+// ─────────────────────────────────────────────
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revoked   Boolean  @default(false)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])    // Lookup token on refresh — must be fast
+  @@index([userId])   // Find all tokens for a user (e.g., logout-all)
+  @@map("refresh_tokens")
+}
+
+// ─────────────────────────────────────────────
+// Client
+// An external client/company that owns Projects.
+// ─────────────────────────────────────────────
+
+model Client {
+  id           String    @id @default(cuid())
+  name         String
+  contactEmail String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  projects     Project[]
+
+  @@index([name])     // Search clients by name
+  @@map("clients")
+}
+
+// ─────────────────────────────────────────────
+// Project
+// Created by a PM or ADMIN; belongs to a Client.
+// ─────────────────────────────────────────────
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  clientId    String
+  createdById String   // Must be PM or ADMIN — enforced at API layer
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  createdBy   User     @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  tasks       Task[]
+
+  @@index([clientId])    // List all projects for a client
+  @@index([createdById]) // List projects created by a PM
+  @@map("projects")
+}
+
+// ─────────────────────────────────────────────
+// Task
+// Core work item. Assigned to a developer, belongs to a project.
+// ─────────────────────────────────────────────
+
+model Task {
+  id                  String       @id @default(cuid())
+  title               String
+  description         String?
+  projectId           String
+  assignedDeveloperId String?      // Nullable — task may be unassigned
+  status              TaskStatus   @default(TODO)
+  priority            TaskPriority @default(MEDIUM)
+  dueDate             DateTime?
+  isOverdue           Boolean      @default(false)  // Updated by background job
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  project             Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignedDeveloper   User?            @relation("TaskAssignee", fields: [assignedDeveloperId], references: [id], onDelete: SetNull)
+  activityLogs        TaskActivityLog[]
+
+  // Indexes: these columns are the most commonly used in WHERE clauses and ORDER BY
+  // for dashboard filtering, kanban board views, and developer task lists.
+  @@index([projectId])           // Fetch all tasks for a project (kanban board)
+  @@index([assignedDeveloperId]) // Fetch tasks for a specific developer
+  @@index([status])              // Filter by kanban column (TODO, IN_PROGRESS, etc.)
+  @@index([priority])            // Filter/sort by priority in task list views
+  @@index([dueDate])             // Sort by upcoming deadlines
+  @@index([isOverdue])           // Quick dashboard "overdue tasks" count
+  @@index([projectId, status])   // Composite: tasks per project in a specific status
+  @@map("tasks")
+}
+
+// ─────────────────────────────────────────────
+// TaskActivityLog
+// Immutable audit trail for every status change on a task.
+// ─────────────────────────────────────────────
+
+model TaskActivityLog {
+  id         String     @id @default(cuid())
+  taskId     String
+  userId     String     // Who made the change
+  fromStatus TaskStatus
+  toStatus   TaskStatus
+  changedAt  DateTime   @default(now())
+
+  task       Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([taskId])   // Fetch full history for a task — the primary access pattern
+  @@index([userId])   // Audit: what changes did a specific user make?
+  @@index([changedAt])// Time-range queries for activity reports
+  @@map("task_activity_logs")
+}
+
+// ─────────────────────────────────────────────
+// Notification
+// In-app notification for a user (task assigned, status changed, etc.)
+// ─────────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  message   String
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])            // Fetch all notifications for a user (bell icon)
+  @@index([userId, isRead])    // Fetch unread count — most frequent notification query
+  @@index([createdAt])         // Paginate notifications by recency
+  @@map("notifications")
+}
