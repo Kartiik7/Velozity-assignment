@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { prisma } from "../lib/prisma";
-import { emitActivityEvent, getAdminRoom } from "../lib/socket";
+import { emitActivityEvent } from "../lib/socket";
 import { TaskStatus } from "@prisma/client";
 
 // Run every 10 minutes to check for overdue tasks
