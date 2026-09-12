@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { TaskList } from './TaskList'
 import { ProjectModal } from './ProjectModal'
+import { TaskModal } from './TaskModal'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000'
 
@@ -51,6 +52,10 @@ export function PMDashboard() {
   // Project Modal State
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<any>(null)
+  
+  // Task Modal State
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('')
 
   const fetchStats = () => {
     if (!accessToken) return
@@ -110,6 +115,7 @@ export function PMDashboard() {
                     <div className="text-xs text-text-secondary">{p._count.tasks} tasks</div>
                   </div>
                   <div className="flex gap-2">
+                    <button onClick={() => { setSelectedProjectId(p.id); setIsTaskModalOpen(true) }} className="text-xs text-brand-500 hover:underline">+ Task</button>
                     <button onClick={() => { setEditingProject(p); setIsProjectModalOpen(true) }} className="text-xs text-brand-400 hover:underline">Edit</button>
                     <button onClick={() => handleDeleteProject(p.id, p.name)} className="text-xs text-danger hover:underline">Delete</button>
                   </div>
@@ -140,6 +146,13 @@ export function PMDashboard() {
         onClose={() => setIsProjectModalOpen(false)}
         onSuccess={fetchStats}
         project={editingProject}
+      />
+      
+      <TaskModal
+        isOpen={isTaskModalOpen}
+        onClose={() => setIsTaskModalOpen(false)}
+        onSuccess={fetchStats}
+        projectId={selectedProjectId}
       />
     </div>
   )
