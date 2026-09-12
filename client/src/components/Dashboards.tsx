@@ -9,12 +9,17 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000'
 export function AdminDashboard() {
   const { accessToken } = useAuth()
   const [stats, setStats] = useState<any>(null)
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false)
 
-  useEffect(() => {
+  const fetchStats = () => {
     if (!accessToken) return
     fetch(`${API_URL}/dashboard/stats`, {
       headers: { Authorization: `Bearer ${accessToken}` }
     }).then(r => r.json()).then(d => setStats(d.data)).catch(console.error)
+  }
+
+  useEffect(() => {
+    fetchStats()
   }, [accessToken])
 
   if (!stats) return <div className="p-4 text-text-secondary">Loading admin stats...</div>
@@ -25,6 +30,15 @@ export function AdminDashboard() {
         <StatCard label="Total Projects" value={stats.totalProjects} icon="📁" />
         <StatCard label="Overdue Tasks" value={stats.overdueCount} icon="⚠️" />
         <StatCard label="Active Users Online" value={stats.activeUsersOnline} icon="🟢" />
+      </div>
+      
+      <div className="flex justify-end">
+        <button 
+          onClick={() => setIsProjectModalOpen(true)}
+          className="rounded bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-500"
+        >
+          + New Project
+        </button>
       </div>
       
       <div className="rounded-xl border border-surface-2 bg-surface-1 p-6">
@@ -41,6 +55,12 @@ export function AdminDashboard() {
 
       <h3 className="mt-8 text-lg font-bold text-text-primary">All Tasks</h3>
       <TaskList />
+      
+      <ProjectModal 
+        isOpen={isProjectModalOpen} 
+        onClose={() => setIsProjectModalOpen(false)}
+        onSuccess={fetchStats}
+      />
     </div>
   )
 }

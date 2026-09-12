@@ -26,11 +26,17 @@ export function ProjectModal({ isOpen, onClose, onSuccess, project }: ProjectMod
       setClientId(project?.clientId || '')
       setError('')
       
-      // Fetch clients just for the dropdown (assuming an endpoint exists, or we mock it. Wait, we don't have a GET /clients endpoint. 
-      // The instructions never asked for Client management CRUD, just assigning. 
-      // For simplicity, we'll fetch existing clients from the DB if possible, or just hardcode the seed client ID, or add a simple input for client name/id.)
-      // Actually, since we need a clientId to create a project, let's fetch projects and extract the client ID, or hardcode it since there's no Client API.
-      // Wait, if there's no Client API, the user can't select one. I will just hardcode the seeded Client ID if it's a new project, which is fine for this assessment scope.
+      if (!project) {
+        fetch(`${API_URL}/dashboard/clients`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        })
+        .then(r => r.json())
+        .then(d => {
+          setClients(d.data || [])
+          if (d.data?.length > 0) setClientId(d.data[0].id)
+        })
+        .catch(console.error)
+      }
     }
   }, [isOpen, project])
 
@@ -42,20 +48,8 @@ export function ProjectModal({ isOpen, onClose, onSuccess, project }: ProjectMod
     setError('')
 
     try {
-      // Hardcoded clientId for the demo since there is no Client CRUD API
-      const hardcodedClientId = project?.clientId || 'fallback-client-id-needs-api' 
-      
       const url = project ? `${API_URL}/projects/${project.id}` : `${API_URL}/projects`
       const method = project ? 'PATCH' : 'POST'
-      
-      // If we don't have a real clientId (like on first run without seed), the API will fail.
-      // We will actually just fetch the first client from the backend via a trick, or we can just send the request and if it fails, tell the user to run the seed script.
-      // Actually, the seed script runs successfully, so there is 1 client. We just need its ID.
-      // Since we can't easily get it without an endpoint, I will just create a basic dummy payload and assume the backend accepts it (it expects a real UUID).
-      // Wait, let's look at POST /projects. It requires `clientId`.
-      
-      // I will just use the first project's clientId from the PM Dashboard stats if available, passed via props? No, let's just make the user type a Client ID for the UI, or...
-      // Better: In `Dashboards.tsx`, I'll pass the first available `clientId` from `stats.projectsSummary[0].clientId`.
       
       const payload = project ? { name, description } : { name, description, clientId }
       
@@ -114,16 +108,18 @@ export function ProjectModal({ isOpen, onClose, onSuccess, project }: ProjectMod
           
           {!project && (
             <div>
-              <label className="block text-sm font-medium text-text-secondary">Client ID</label>
-              <input
-                type="text"
+              <label className="block text-sm font-medium text-text-secondary">Client</label>
+              <select
                 required
                 value={clientId}
                 onChange={e => setClientId(e.target.value)}
-                placeholder="Must be a valid Client UUID"
                 className="mt-1 w-full rounded-md border border-surface-3 bg-surface-2 p-2 text-text-primary outline-none focus:border-brand-500"
-              />
-              <p className="mt-1 text-xs text-text-muted">Hint: Copy from database (no Client API built)</p>
+              >
+                <option value="">Select a Client...</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
           )}
 
