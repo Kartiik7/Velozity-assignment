@@ -27,10 +27,11 @@ const REFRESH_COOKIE = "refresh_token";
 // ─────────────────────────────────────────────
 function getRefreshCookieOptions() {
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  const isProd = config.NODE_ENV === "production";
   return {
     httpOnly: true,
-    secure: config.NODE_ENV === "production",
-    sameSite: "strict" as const,
+    secure: isProd,
+    sameSite: isProd ? ("none" as const) : ("lax" as const),
     path: "/auth",              // Scoped to /auth routes only
     maxAge: sevenDaysMs,
   };
