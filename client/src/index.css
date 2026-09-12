@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────
+   Design tokens for Client Project Dashboard
+   Using CSS custom properties + Tailwind v4's
+   @theme directive for first-class Tailwind support.
+───────────────────────────────────────────── */
+
+@theme {
+  --color-brand-50:  #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-900: #1e1b4b;
+
+  --color-surface-0:   #0f0f1a;
+  --color-surface-1:   #16172a;
+  --color-surface-2:   #1e2038;
+  --color-surface-3:   #272a4a;
+
+  --color-text-primary:   #f0f0ff;
+  --color-text-secondary: #a5a8c8;
+  --color-text-muted:     #5e6288;
+
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger:  #ef4444;
+  --color-info:    #38bdf8;
+
+  --radius-card: 1rem;
+  --radius-btn:  0.5rem;
+
+  --shadow-card: 0 4px 24px rgba(0,0,0,.35);
+  --shadow-glow: 0 0 32px rgba(99,102,241,.25);
+}
+
+/* ─────────────────────────────────────────────
+   Base resets & defaults
+───────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-surface-0);
+  color: var(--color-text-primary);
+  min-height: 100dvh;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: var(--color-surface-1); }
+::-webkit-scrollbar-thumb  { background: var(--color-surface-3); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-brand-500); }
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
