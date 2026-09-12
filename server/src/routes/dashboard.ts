@@ -110,7 +110,7 @@ router.get(
   "/clients",
   verifyToken,
   requireRole([Role.ADMIN, Role.PM]),
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (_req, res) => {
     const clients = await prisma.client.findMany({ select: { id: true, name: true } });
     res.json({ data: clients });
   })
